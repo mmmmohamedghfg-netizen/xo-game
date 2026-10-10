@@ -1,0 +1,38 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: xo_game
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip project
+        working-directory: .
+        run: unzip -q "*.zip"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Generate Android project
+        run: flutter create --platforms=android --org com.xogame --project-name xo_game .
+      - name: Add Bluetooth native code
+        run: |
+          PKG=android/app/src/main/kotlin/com/xogame/xo_game
+          test -d "$PKG" || (echo "package dir missing" && exit 1)
+          cp native/MainActivity.kt "$PKG/MainActivity.kt"
+          python3 native/patch.py
+      - run: flutter pub get
+      - run: dart run flutter_launcher_icons
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xo-game-apk
+          path: xo_game/build/app/outputs/flutter-apk/app-release.apk
